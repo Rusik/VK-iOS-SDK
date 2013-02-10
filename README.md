@@ -1,4 +1,4 @@
-VK-iOS-SDK
+VK iOS SDK
 ==========
 
-VK SDK
+Other information will be soon...
