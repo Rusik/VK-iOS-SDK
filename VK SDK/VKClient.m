@@ -30,19 +30,9 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
 @end
 
 @implementation VKClient {
-    VKSession *_session;
-    
     NSDictionary *_captchaRequestInfo;
     NSDictionary *_captchaInfo;
     NSString *_captchaText;
-}
-
-- (id)initWithSession:(VKSession *)session {
-    self = [super init];
-    if (self) {
-        _session = session;
-    }
-    return self;
 }
 
 #pragma mark - Public
@@ -73,7 +63,11 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
 
 - (void)sendRequest:(NSString *)requestString success:(SuccessBlock)successBlock failure:(FailureBlock)failureBlock {
     
-    requestString = [requestString stringByAppendingFormat:@"&access_token=%@", _session.accessToken];
+    if (![self isActiveSessionValid]) {
+        return;
+    }
+    
+    requestString = [requestString stringByAppendingFormat:@"&access_token=%@", [[VKSession activeSession] accessToken]];
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:requestString]];
     
     if (LOG) NSLog(@"Send request:\n%@", requestString);
@@ -132,6 +126,20 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
         return error;
     }
     return nil;
+}
+
+- (BOOL)isActiveSessionValid {
+    VKSession *activeSession = [VKSession activeSession];
+    if (!activeSession.isAuthorized) {
+        NSLog(@"ERROR: active session is not authorized");
+        return NO;
+    } else {
+        if (!activeSession.isTokenValid) {
+            NSLog(@"ERROR: access token is not valid");
+            return NO;
+        }
+    }
+    return YES;
 }
 
 #define TEXT_FIELD_TAG 99

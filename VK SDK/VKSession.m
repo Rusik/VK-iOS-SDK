@@ -17,7 +17,7 @@
 
 #define ERROR_DOMAIN @"com.ruslankavetsky.VKSDK.VKSession"
 
-static VKSession *_sharedSession = nil;
+static VKSession *_activeSession = nil;
 
 @implementation UIWindow (topMostController)
 
@@ -46,12 +46,13 @@ static VKSession *_sharedSession = nil;
 
 #pragma mark -
 
-+ (VKSession *)sharedSession {
-    return _sharedSession;
++ (id)openSessionWithAppId:(NSString *)appId permissions:(NSString *)permissions {
+    _activeSession = [[VKSession alloc] initWithAppId:appId permissions:permissions];
+    return _activeSession;
 }
 
-+ (void)setSharedSession:(VKSession *)session {
-    _sharedSession = session;
++ (VKSession *)activeSession {
+    return _activeSession;
 }
 
 - (id)initWithAppId:(NSString *)appId permissions:(NSString *)permissions {

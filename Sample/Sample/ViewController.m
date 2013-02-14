@@ -28,15 +28,14 @@
 
 - (VKClient *)vkClient {
     if (!_vkClient) {
-        _vkClient = [[VKClient alloc] initWithSession:[self vkSession]];
+        _vkClient = [[VKClient alloc] init];
     }
     return _vkClient;
 }
 
 - (VKSession *)vkSession {
     if (!_vkSession) {
-        _vkSession = [[VKSession alloc] initWithAppId:APP_ID permissions:PERMISSIONS];
-        [VKSession setSharedSession:_vkSession];
+        _vkSession = [VKSession openSessionWithAppId:APP_ID permissions:PERMISSIONS];
         _vkSession.delegate = self;
     }
     return _vkSession;

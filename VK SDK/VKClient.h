@@ -15,7 +15,6 @@ typedef void(^VKResulthandler)(NSDictionary *result, NSError *error);
 
 @interface VKClient : NSObject
 
-- (id)initWithSession:(VKSession *)session;
 - (void)sendRequestWithMethod:(NSString *)method parameters:(NSDictionary *)parameters handler:(VKResulthandler)handler;
 
 @end

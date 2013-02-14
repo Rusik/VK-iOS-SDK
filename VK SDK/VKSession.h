@@ -31,10 +31,8 @@
 
 @property (weak) id<VKSessionDelegate> delegate;
 
-- (id)initWithAppId:(NSString *)appId permissions:(NSString *)permissions;
-
-+ (VKSession *)sharedSession;
-+ (void)setSharedSession:(VKSession *)session;
++ (VKSession *)openSessionWithAppId:(NSString *)appId permissions:(NSString *)permissions;
++ (VKSession *)activeSession;
 
 - (void)login;
 - (void)logout;

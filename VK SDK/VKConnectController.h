@@ -18,7 +18,7 @@
 
 @interface VKConnectController : UIViewController
 
-@property (nonatomic, assign) id<VKConnectControllerDelegate> delegate;
+@property (weak) id<VKConnectControllerDelegate> delegate;
 
 - (id)initWithUrl:(NSString *)url;
 
