@@ -112,7 +112,8 @@ static VKSession *_activeSession = nil;
 }
 
 - (BOOL)isTokenValid {
-    return [[NSDate date] earlierDate:_expirationDate] && _accsessToken != nil && _userId != nil;
+    NSDate *currentDate = [NSDate date];
+    return ([currentDate compare:_expirationDate] == NSOrderedAscending) && (_accsessToken != nil) && (_userId != nil);
 }
 
 - (void)updateToken {
