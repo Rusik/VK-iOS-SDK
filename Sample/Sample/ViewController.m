@@ -36,6 +36,7 @@
 - (VKSession *)vkSession {
     if (!_vkSession) {
         _vkSession = [[VKSession alloc] initWithAppId:APP_ID permissions:PERMISSIONS];
+        [VKSession setSharedSession:_vkSession];
         _vkSession.delegate = self;
     }
     return _vkSession;
