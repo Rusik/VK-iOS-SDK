@@ -3,7 +3,7 @@
 //  vk
 //
 //  Created by Ruslan Kavetsky on 2/7/13.
-//  Copyright (c) 2013 Ruslan. All rights reserved.
+//  Copyright (c) 2013 Ruslan Kavetsky. All rights reserved.
 //
 
 #import <UIKit/UIKit.h>
@@ -13,8 +13,7 @@
 @protocol VKConnectControllerDelegate <NSObject>
 @optional
 - (void)vkController:(VKConnectController *)controller didLoginWithAccessToken:(NSString *)token expirationDate:(NSDate *)date userId:(NSString *)userId;
-- (void)vkControllerLoginDidFail:(VKConnectController *)controller;
-
+- (void)vkControllerLoginDidFail:(VKConnectController *)controller withError:(NSError *)error;
 @end
 
 @interface VKConnectController : UIViewController

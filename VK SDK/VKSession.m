@@ -3,7 +3,7 @@
 //  vk
 //
 //  Created by Ruslan Kavetsky on 2/7/13.
-//  Copyright (c) 2013 Ruslan. All rights reserved.
+//  Copyright (c) 2013 Ruslan Kavetsky. All rights reserved.
 //
 
 #import "VKSession.h"
@@ -15,7 +15,21 @@
 #define USER_ID_KEY @"VKuserIdKey"
 #define EXPIRATION_DATE_KEY @"VkExpirationDateKey"
 
+#define ERROR_DOMAIN @"com.ruslankavetsky.VKSDK.VKSession"
+
 static VKSession *_sharedSession = nil;
+
+@implementation UIWindow (topMostController)
+
+- (UIViewController *)topmostViewController {
+    UIViewController *topmostViewController = [self rootViewController];
+    while (topmostViewController.presentedViewController) {
+        topmostViewController = topmostViewController.presentedViewController;
+    }
+    return topmostViewController;
+}
+
+@end
 
 @interface VKSession () <VKConnectControllerDelegate>
 
@@ -64,11 +78,12 @@ static VKSession *_sharedSession = nil;
     return _expirationDate != nil && _accsessToken != nil && _userId != nil;
 }
 
-- (void)loginFromViewController:(UIViewController *)viewController {
+- (void)login {
     VKConnectController *connectVC = [[VKConnectController alloc] initWithUrl:[self authString]];
     connectVC.delegate = self;
     UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:connectVC];
-    [viewController presentViewController:navController animated:YES completion:nil];
+    UIViewController *topMostViewController = [[[UIApplication sharedApplication] keyWindow] topmostViewController];
+    [topMostViewController presentViewController:navController animated:YES completion:nil];
 }
 
 - (void)logout {
@@ -78,14 +93,21 @@ static VKSession *_sharedSession = nil;
     NSURLRequest *request = [NSURLRequest requestWithURL:url];
     
     AFHTTPRequestOperation *op = [[AFHTTPRequestOperation alloc] initWithRequest:request];
+    [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        [self clearCookie];
+        _accsessToken = nil;
+        _expirationDate = nil;
+        _userId = nil;
+        [self sync];
+        if ([self.delegate respondsToSelector:@selector(vkSessionDidLogout:)]) {
+            [self.delegate vkSessionDidLogout:self];
+        }
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        if ([self.delegate respondsToSelector:@selector(vkSessionLoginDidFail:withError:)]) {
+            [self.delegate vkSessionLogoutDidFail:self withError:error];
+        }
+    }];
     [op start];
-    
-    [self clearCookie];
-    
-    _accsessToken = nil;
-    _expirationDate = nil;
-    _userId = nil;
-    [self sync];
 }
 
 - (BOOL)isTokenValid {
@@ -106,12 +128,21 @@ static VKSession *_sharedSession = nil;
         }
         return request;
     }];
-    [op setCompletionBlock:^{
+    [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
         if (redirectRequest) {
-            NSLog(@"Token was updated");
+            if ([self.delegate respondsToSelector:@selector(vkSessionTokenDidUpdate:)]) {
+                [self.delegate vkSessionTokenDidUpdate:self];
+            }
         } else {
-            NSLog(@"ERROR: Token update was failed");
+            if ([self.delegate respondsToSelector:@selector(vkSessionTokenUpdateDidFailed:withError:)]) {
+                [self.delegate vkSessionTokenUpdateDidFailed:self withError:[NSError errorWithDomain:ERROR_DOMAIN code:0 userInfo:@{@"unknown error": @"can't update token"}]];
+            }
         }
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        if ([self.delegate respondsToSelector:@selector(vkSessionTokenUpdateDidFailed:withError:)]) {
+            [self.delegate vkSessionTokenUpdateDidFailed:self withError:error];
+        }
+             
     }];
     [op start];
 }
@@ -184,6 +215,15 @@ static VKSession *_sharedSession = nil;
     _expirationDate = date;
     _userId = userId;
     [self sync];
+    if ([self.delegate respondsToSelector:@selector(vkSessionDidLogin:)]) {
+        [self.delegate vkSessionDidLogin:self];
+    }
+}
+
+- (void)vkControllerLoginDidFail:(VKConnectController *)controller withError:(NSError *)error {
+    if ([self.delegate respondsToSelector:@selector(vkSessionLoginDidFail:withError:)]) {
+        [self.delegate vkSessionLoginDidFail:self withError:error];
+    }
 }
 
 @end

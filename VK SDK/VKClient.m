@@ -3,12 +3,12 @@
 //  vk
 //
 //  Created by Ruslan Kavetsky on 2/8/13.
-//  Copyright (c) 2013 Ruslan. All rights reserved.
+//  Copyright (c) 2013 Ruslan Kavetsky. All rights reserved.
 //
 
 #import "VKClient.h"
-#import "AFNetworking.h"
 #import "NSString+VK.h"
+#import "AFNetworking.h"
 
 #define CAPTCHA_SID_KEY @"CaptchaSidKey"
 #define CAPTCHA_IMAGE_KEY @"CaptchaImageKey"
@@ -17,12 +17,13 @@
 #define SUCCESS_BLOCK_KEY @"SuccessBlockKey"
 #define FAILURE_BLOCK_KEY @"FailureBlockKey"
 
-#define LOG 1
+#define ERROR_DOMAIN @"com.ruslankavetsky.VKSDK.VKClient"
+
+#define LOG 0
 
 typedef void(^SuccessBlock)(NSURLRequest *request, NSHTTPURLResponse *response, id JSON);
 typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, id JSON);
 
-#define ERROR_DOMAIN @"com.ruslankavetsky.VKSDK"
 
 @interface VKClient () <UIAlertViewDelegate>
 
@@ -44,22 +45,25 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
     return self;
 }
 
-#pragma mark - Public 
+#pragma mark - Public
 
-- (void)sendRequestWithMethod:(NSString *)method parameters:(NSDictionary *)parameters success:(VKSuccessBlock)success failure:(VKFailureBlock)failure {
+- (void)sendRequestWithMethod:(NSString *)method parameters:(NSDictionary *)parameters handler:(VKResulthandler)handler {
     NSString *requestString = [self requestStringWithMethod:method];
     for (NSString *key in [parameters allKeys]) {
-        requestString = [requestString stringByAppendingFormat:@"&%@=%@", key, [[parameters objectForKey:key] stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding]];
+        requestString = [requestString stringByAppendingFormat:@"&%@=%@", key, [parameters objectForKey:key]];
     }
+    
+    requestString = [requestString stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+    
     SuccessBlock successBlock = ^(NSURLRequest *request, NSHTTPURLResponse *response, id JSON) {
         NSDictionary *result = (NSDictionary *)JSON;
-        if (success) {
-            success(result);
+        if (handler) {
+            handler(result, nil);
         }
     };
     FailureBlock failureBlock = ^(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, id JSON) {
-        if (failure) {
-            failure(error);
+        if (handler) {
+            handler(nil, error);
         }
     };
     [self sendRequest:requestString success:successBlock failure:failureBlock];
@@ -100,7 +104,7 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
         if (successBlock) {
             successBlock(request, response, JSON);
         }
-     
+        
     } failure:^(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, id JSON) {
         if (failureBlock) {
             failureBlock(request, response, error, JSON);
