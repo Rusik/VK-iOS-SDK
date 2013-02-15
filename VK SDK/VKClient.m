@@ -37,7 +37,7 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
 
 #pragma mark - Public
 
-- (void)sendRequestWithMethod:(NSString *)method parameters:(NSDictionary *)parameters handler:(VKResulthandler)handler {
+- (void)sendRequestWithMethod:(NSString *)method parameters:(NSDictionary *)parameters handler:(VKResultHandler)handler {
     NSString *requestString = [self requestStringWithMethod:method];
     for (NSString *key in [parameters allKeys]) {
         requestString = [requestString stringByAppendingFormat:@"&%@=%@", key, [parameters objectForKey:key]];

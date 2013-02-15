@@ -9,12 +9,12 @@
 #import <Foundation/Foundation.h>
 #import "VKSession.h"
 
-typedef void(^VKResulthandler)(NSDictionary *result, NSError *error);
+typedef void(^VKResultHandler)(NSDictionary *result, NSError *error);
 
 @class VKClient;
 
 @interface VKClient : NSObject
 
-- (void)sendRequestWithMethod:(NSString *)method parameters:(NSDictionary *)parameters handler:(VKResulthandler)handler;
+- (void)sendRequestWithMethod:(NSString *)method parameters:(NSDictionary *)parameters handler:(VKResultHandler)handler;
 
 @end
