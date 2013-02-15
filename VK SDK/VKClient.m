@@ -9,6 +9,7 @@
 #import "VKClient.h"
 #import "NSString+VK.h"
 #import "AFNetworking.h"
+#import "VKSession+Internal.h"
 
 #define CAPTCHA_SID_KEY @"CaptchaSidKey"
 #define CAPTCHA_IMAGE_KEY @"CaptchaImageKey"
@@ -33,6 +34,19 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
     NSDictionary *_captchaRequestInfo;
     NSDictionary *_captchaInfo;
     NSString *_captchaText;
+    BOOL _tokenUpdating;
+    NSMutableArray *_requestQueue;
+}
+
+#pragma mark - Init
+
+- (id)init {
+    self = [super init];
+    if (self) {
+        _tokenUpdating = NO;
+        _requestQueue = [NSMutableArray array];
+    }
+    return self;
 }
 
 #pragma mark - Public
@@ -60,18 +74,18 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
 }
 
 #pragma mark - Private
+#define INVALID_ACCESS_TOKEN_CODE 5
 
 - (void)sendRequest:(NSString *)requestString success:(SuccessBlock)successBlock failure:(FailureBlock)failureBlock {
-    
-    if (![self isActiveSessionValid]) {
-        return;
-    }
     
     requestString = [requestString stringByAppendingFormat:@"&access_token=%@", [[VKSession activeSession] accessToken]];
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:requestString]];
     
-    if (LOG) NSLog(@"Send request:\n%@", requestString);
-    
+    if (_tokenUpdating) {
+        [self addRequestToQueue:requestString success:successBlock failure:failureBlock];
+        return;
+    }
+        
     AFJSONRequestOperation *op =
     [AFJSONRequestOperation JSONRequestOperationWithRequest:request success:^(NSURLRequest *request, NSHTTPURLResponse *response, id JSON) {
         
@@ -81,7 +95,7 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
         
         NSDictionary *captchaInfo = [self checkForCaptcha:dict];
         if (captchaInfo) {
-            _captchaRequestInfo = @{REQUEST_KEY: request, SUCCESS_BLOCK_KEY: successBlock, FAILURE_BLOCK_KEY: failureBlock};
+            _captchaRequestInfo = @{REQUEST_KEY: requestString, SUCCESS_BLOCK_KEY: successBlock, FAILURE_BLOCK_KEY: failureBlock};
             _captchaInfo = captchaInfo;
             [self showAlertViewWithCaptcha];
             return;
@@ -89,6 +103,32 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
         
         NSError *error = [self checkForError:dict];
         if (error) {
+            
+            if (error.code == INVALID_ACCESS_TOKEN_CODE) {
+                
+                if (![VKSession activeSession]) {
+                    NSError *error = [NSError errorWithDomain:ERROR_DOMAIN code:0 userInfo:@{@"Error description": @"You have not active session"}];
+                    failureBlock(request, response, error, JSON);
+                    return;
+                }
+                
+                _tokenUpdating = YES;
+                [self addRequestToQueue:requestString success:successBlock failure:failureBlock];
+                
+                [[VKSession activeSession] reopenSession:^(NSError *error) {
+                    _tokenUpdating = NO;
+                    if (error) {
+                        [self clearQueue];                        
+                        if (failureBlock) {
+                            failureBlock(request, response, error, JSON);
+                        }
+                    } else {
+                        [self sendRequestFromQueue];
+                    }
+                }];
+                return;
+            }
+            
             if (failureBlock) {
                 failureBlock(request, response, error, JSON);
             }
@@ -104,6 +144,8 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
             failureBlock(request, response, error, JSON);
         }
     }];
+    
+    if (LOG) NSLog(@"Send request:\n%@", requestString);    
     [op start];
 }
 
@@ -128,18 +170,24 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
     return nil;
 }
 
-- (BOOL)isActiveSessionValid {
-    VKSession *activeSession = [VKSession activeSession];
-    if (!activeSession.isAuthorized) {
-        NSLog(@"ERROR: active session is not authorized");
-        return NO;
-    } else {
-        if (!activeSession.isTokenValid) {
-            NSLog(@"ERROR: access token is not valid");
-            return NO;
-        }
+- (void)addRequestToQueue:(NSString *)requestString success:(SuccessBlock)successBlock failure:(FailureBlock)failureBlock {
+     NSDictionary *requestInfo = @{REQUEST_KEY: requestString, SUCCESS_BLOCK_KEY: successBlock, FAILURE_BLOCK_KEY: failureBlock};
+    [_requestQueue addObject:requestInfo];
+}
+
+- (void)sendRequestFromQueue {
+    if (_requestQueue.count) {
+        NSDictionary *requestInfo = [_requestQueue objectAtIndex:0];
+        [_requestQueue removeObjectAtIndex:0];
+        [self sendRequest:[requestInfo objectForKey:REQUEST_KEY]
+                  success:[requestInfo objectForKey:SUCCESS_BLOCK_KEY]
+                  failure:[requestInfo objectForKey:FAILURE_BLOCK_KEY]];
+        [self sendRequestFromQueue];
     }
-    return YES;
+}
+
+- (void)clearQueue {
+    [_requestQueue removeAllObjects];
 }
 
 #define TEXT_FIELD_TAG 99
@@ -180,8 +228,7 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
 }
 
 - (void)resendRequestWithCaptha {
-    NSURLRequest *request = [_captchaRequestInfo objectForKey:REQUEST_KEY];
-    NSString *requestString = request.URL.absoluteString;
+    NSString *requestString =  [_captchaRequestInfo objectForKey:REQUEST_KEY];
     
     requestString = [requestString stringByReplacingOccurrencesOfString:[NSString stringWithFormat:@"&access_token=%@", [requestString valueForParameter:@"access_token"]] withString:@""];
     requestString = [requestString stringByReplacingOccurrencesOfString:[NSString stringWithFormat:@"&captcha_sid=%@", [requestString valueForParameter:@"captcha_sid"]] withString:@""];

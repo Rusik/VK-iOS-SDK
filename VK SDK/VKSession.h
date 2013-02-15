@@ -8,37 +8,18 @@
 
 #import <Foundation/Foundation.h>
 
+typedef void(^VKSessionHandler)(NSError *error);
+
 @class VKSession;
-
-@protocol VKSessionDelegate <NSObject>
-
-@optional
-- (void)vkSessionDidLogin:(VKSession *)session;
-- (void)vkSessionLoginDidFail:(VKSession *)session withError:(NSError *)error;
-
-- (void)vkSessionTokenDidUpdate:(VKSession *)session;
-- (void)vkSessionTokenUpdateDidFailed:(VKSession *)session withError:(NSError *)error;
-
-- (void)vkSessionDidLogout:(VKSession *)session;
-- (void)vkSessionLogoutDidFail:(VKSession *)session withError:(NSError *)error;
-
-@end
 
 @interface VKSession : NSObject
 
 @property (readonly) NSString *accessToken;
 @property (readonly) NSString *userId;
 
-@property (weak) id<VKSessionDelegate> delegate;
-
-+ (VKSession *)openSessionWithAppId:(NSString *)appId permissions:(NSString *)permissions;
++ (VKSession *)openSessionWithAppId:(NSString *)appId permissions:(NSString *)permissions handler:(VKSessionHandler)handler;
 + (VKSession *)activeSession;
 
-- (void)login;
-- (void)logout;
-- (void)updateToken;
-
-- (BOOL)isAuthorized;
-- (BOOL)isTokenValid;
+- (void)close:(VKSessionHandler)handler;
 
 @end

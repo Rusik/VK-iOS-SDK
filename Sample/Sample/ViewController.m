@@ -13,10 +13,6 @@
 #define APP_ID @"your_app_id"
 #define PERMISSIONS @"needed_permissions"
 
-@interface ViewController () <VKSessionDelegate>
-
-@end
-
 @implementation ViewController {
     IBOutlet UIImageView *avatar;
     IBOutlet UILabel *name;
@@ -33,33 +29,26 @@
     return _vkClient;
 }
 
-- (VKSession *)vkSession {
-    if (!_vkSession) {
-        _vkSession = [VKSession openSessionWithAppId:APP_ID permissions:PERMISSIONS];
-        _vkSession.delegate = self;
-    }
-    return _vkSession;
-}
-
 - (void)viewDidLoad {
     [super viewDidLoad];
-    
-    if ([[self vkSession] isAuthorized]) {
-        
-        [loginButton setTitle:@"Logout" forState:UIControlStateNormal];
-        [loginButton removeTarget:nil action:NULL forControlEvents:UIControlEventAllEvents];
-        [loginButton addTarget:self action:@selector(logout) forControlEvents:UIControlEventTouchUpInside];
-        
-        if ([[self vkSession] isTokenValid]) {
-            [self profile];
+    [loginButton addTarget:self action:@selector(login) forControlEvents:UIControlEventTouchUpInside];
+}
+
+- (void)openSession {
+    [VKSession openSessionWithAppId:APP_ID permissions:PERMISSIONS handler:^(NSError *error) {
+        if (error) {
+            NSLog(@"%@", error);
+            [loginButton setTitle:@"Login" forState:UIControlStateNormal];
+            [loginButton removeTarget:nil action:NULL forControlEvents:UIControlEventAllEvents];
+            [loginButton addTarget:self action:@selector(login) forControlEvents:UIControlEventTouchUpInside];
         } else {
-            [[self vkSession] updateToken];
+            [self profile];
+            [loginButton setTitle:@"Logout" forState:UIControlStateNormal];
+            [loginButton removeTarget:nil action:NULL forControlEvents:UIControlEventAllEvents];
+            [loginButton addTarget:self action:@selector(logout) forControlEvents:UIControlEventTouchUpInside];
         }
-    } else {
-        [loginButton setTitle:@"Login" forState:UIControlStateNormal];
-        [loginButton removeTarget:nil action:NULL forControlEvents:UIControlEventAllEvents];        
-        [loginButton addTarget:self action:@selector(login) forControlEvents:UIControlEventTouchUpInside];
-    }
+        NSLog(@"%@", [VKSession activeSession]);
+    }];    
 }
 
 #pragma mark - Private
@@ -81,45 +70,17 @@
 }
 
 - (void)login {
-    [[self vkSession] login];
+    [self openSession];
 }
 
 - (void)logout {
-    [[self vkSession] logout];
+    [[VKSession activeSession] close:^(NSError *error) {
+        [loginButton setTitle:@"Login" forState:UIControlStateNormal];
+        [loginButton removeTarget:nil action:NULL forControlEvents:UIControlEventAllEvents];
+        [loginButton addTarget:self action:@selector(login) forControlEvents:UIControlEventTouchUpInside];
+        [avatar setImage:nil];
+        name.text = @"";        
+    }];
 }
-
-#pragma VKSessionDelegate
-
-- (void)vkSessionDidLogin:(VKSession *)session {
-    [loginButton setTitle:@"Logout" forState:UIControlStateNormal];
-    [loginButton removeTarget:nil action:NULL forControlEvents:UIControlEventAllEvents];
-    [loginButton addTarget:self action:@selector(logout) forControlEvents:UIControlEventTouchUpInside];
-    [self profile];    
-}
-
-- (void)vkSessionLoginDidFail:(VKSession *)session withError:(NSError *)error{
-    NSLog(@"%@", error);
-}
-
-- (void)vkSessionTokenDidUpdate:(VKSession *)session {
-    [self profile];
-}
-
-- (void)vkSessionTokenUpdateDidFailed:(VKSession *)session withError:(NSError *)error{
-    NSLog(@"%@", error);
-}
-
-- (void)vkSessionDidLogout:(VKSession *)session {
-    [loginButton setTitle:@"Login" forState:UIControlStateNormal];
-    [loginButton removeTarget:nil action:NULL forControlEvents:UIControlEventAllEvents];    
-    [loginButton addTarget:self action:@selector(login) forControlEvents:UIControlEventTouchUpInside];
-    [avatar setImage:nil];
-    name.text = @"";
-}
-
-- (void)vkSessionLogoutDidFail:(VKSession *)session withError:(NSError *)error{
-    NSLog(@"%@", error);
-}
-
 
 @end

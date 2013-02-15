@@ -10,6 +10,7 @@
 #import "VKConnectController.h"
 #import "AFNetworking.h"
 #import "NSString+VK.h"
+#import "VKSession.h"
 
 #define ACCESS_TOKEN_KEY @"VKAccessTokenKey"
 #define USER_ID_KEY @"VKuserIdKey"
@@ -42,12 +43,25 @@ static VKSession *_activeSession = nil;
     
     NSString *_appId;
     NSString *_permissions;
+    
+    VKSessionHandler _openHandler;
 }
 
 #pragma mark -
 
-+ (id)openSessionWithAppId:(NSString *)appId permissions:(NSString *)permissions {
++ (VKSession *)openSessionWithAppId:(NSString *)appId permissions:(NSString *)permissions handler:(VKSessionHandler)handler {
     _activeSession = [[VKSession alloc] initWithAppId:appId permissions:permissions];
+    if ([_activeSession isAuthorized]) {
+        if ([_activeSession isTokenExpired]) {
+            [_activeSession updateTokenOrOpenLoginScreen:handler];
+        } else {
+            if (handler) {
+                handler(nil);
+            }
+        }
+    } else {
+        [_activeSession openLoginScreen:handler];
+    }
     return _activeSession;
 }
 
@@ -73,53 +87,24 @@ static VKSession *_activeSession = nil;
     return [NSString stringWithFormat:@"Access token: %@, User id: %@, Expiration date: %@", _accsessToken, _userId, _expirationDate];
 }
 
-#pragma mark - Public
+#pragma mark - 
 
-- (BOOL)isAuthorized {
-    return _expirationDate != nil && _accsessToken != nil && _userId != nil;
-}
-
-- (void)login {
+- (void)openLoginScreen:(VKSessionHandler)handler {
     VKConnectController *connectVC = [[VKConnectController alloc] initWithUrl:[self authString]];
     connectVC.delegate = self;
+    _openHandler = handler;
     UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:connectVC];
     UIViewController *topMostViewController = [[[UIApplication sharedApplication] keyWindow] topmostViewController];
     [topMostViewController presentViewController:navController animated:YES completion:nil];
 }
 
-- (void)logout {
-    NSString *logout = [NSString stringWithFormat:@"http://api.vk.com/oauth/logout?client_id=%@", _appId];
-    
-    NSURL *url = [NSURL URLWithString:logout];
-    NSURLRequest *request = [NSURLRequest requestWithURL:url];
-    
-    AFHTTPRequestOperation *op = [[AFHTTPRequestOperation alloc] initWithRequest:request];
-    [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
-        [self clearCookie];
-        _accsessToken = nil;
-        _expirationDate = nil;
-        _userId = nil;
-        [self sync];
-        if ([self.delegate respondsToSelector:@selector(vkSessionDidLogout:)]) {
-            [self.delegate vkSessionDidLogout:self];
-        }
-    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        if ([self.delegate respondsToSelector:@selector(vkSessionLoginDidFail:withError:)]) {
-            [self.delegate vkSessionLogoutDidFail:self withError:error];
-        }
-    }];
-    [op start];
-}
-
-- (BOOL)isTokenValid {
-    NSDate *currentDate = [NSDate date];
-    return ([currentDate compare:_expirationDate] == NSOrderedAscending) && (_accsessToken != nil) && (_userId != nil);
-}
-
-- (void)updateToken {
+- (void)updateTokenOrOpenLoginScreen:(VKSessionHandler)handler {
     __block NSURLRequest *redirectRequest = nil;
+    
     AFHTTPRequestOperation *op = [[AFHTTPRequestOperation alloc] initWithRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[self authString]]]];
+    
     [op setRedirectResponseBlock:^NSURLRequest *(NSURLConnection *connection, NSURLRequest *request, NSURLResponse *redirectResponse) {
+        
         NSString *redirectUrl = request.URL.absoluteString;
         if ([redirectUrl rangeOfString:@"access_token"].location != NSNotFound) {
             _accsessToken = [redirectUrl valueForParameter:@"access_token"];
@@ -129,24 +114,78 @@ static VKSession *_activeSession = nil;
             [self sync];
         }
         return request;
+        
     }];
+    
     [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
-        if (redirectRequest) {
-            if ([self.delegate respondsToSelector:@selector(vkSessionTokenDidUpdate:)]) {
-                [self.delegate vkSessionTokenDidUpdate:self];
-            }
-        } else {
-            if ([self.delegate respondsToSelector:@selector(vkSessionTokenUpdateDidFailed:withError:)]) {
-                [self.delegate vkSessionTokenUpdateDidFailed:self withError:[NSError errorWithDomain:ERROR_DOMAIN code:0 userInfo:@{@"unknown error": @"can't update token"}]];
+        
+        if (handler) {
+            if (redirectRequest) {
+                handler(nil);
+            } else {
+                [self openLoginScreen:handler];
             }
         }
+        
     } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        if ([self.delegate respondsToSelector:@selector(vkSessionTokenUpdateDidFailed:withError:)]) {
-            [self.delegate vkSessionTokenUpdateDidFailed:self withError:error];
+
+        [self clearAll];
+        
+        if (handler) {
+            handler(error);
         }
-             
+        
     }];
+    
     [op start];
+}
+
+- (void)close:(VKSessionHandler)handler {
+    NSString *logout = [NSString stringWithFormat:@"http://api.vk.com/oauth/logout?client_id=%@", _appId];
+    
+    NSURL *url = [NSURL URLWithString:logout];
+    NSURLRequest *request = [NSURLRequest requestWithURL:url];
+    
+    AFHTTPRequestOperation *op = [[AFHTTPRequestOperation alloc] initWithRequest:request];
+    [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        
+        [self clearCookie];
+        [self clearAll];
+        
+        if (handler) {
+            handler(nil);
+        }
+        
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+
+        if (handler) {
+            handler(error);
+        }
+        
+    }];
+    
+    [op start];
+}
+
+- (void)reopenSession:(VKSessionHandler)handler {
+    [_activeSession updateTokenOrOpenLoginScreen:handler];
+}
+
+- (BOOL)isTokenExpired {
+    NSDate *currentDate = [NSDate date];
+    return !([currentDate compare:_expirationDate] == NSOrderedAscending);
+}
+
+- (BOOL)isAuthorized {
+    return _expirationDate && _accsessToken && _userId;
+}
+
+- (void)clearAll {
+    _accsessToken = nil;
+    _expirationDate = nil;
+    _userId = nil;
+    _activeSession = nil;
+    [self sync];
 }
 
 #pragma mark - Properties
@@ -174,7 +213,7 @@ static VKSession *_activeSession = nil;
 }
 
 - (void)clearCookie {
-    NSHTTPCookieStorage* cookies = [NSHTTPCookieStorage sharedHTTPCookieStorage];
+    NSHTTPCookieStorage *cookies = [NSHTTPCookieStorage sharedHTTPCookieStorage];
     NSArray *vkCookies1 = [cookies cookiesForURL:[NSURL URLWithString:@"http://api.vk.com"]];
     NSArray *vkCookies2 = [cookies cookiesForURL:[NSURL URLWithString:@"http://vk.com"]];
     NSArray *vkCookies3 = [cookies cookiesForURL:[NSURL URLWithString:@"http://login.vk.com"]];
@@ -184,28 +223,28 @@ static VKSession *_activeSession = nil;
     NSArray *vkCookies7 = [cookies cookiesForURL:[NSURL URLWithString:@"https://login.vk.com"]];
     NSArray *vkCookies8 = [cookies cookiesForURL:[NSURL URLWithString:@"https://oauth.vk.com"]];
     
-    for (NSHTTPCookie* cookie in vkCookies1) {
+    for (NSHTTPCookie *cookie in vkCookies1) {
         [cookies deleteCookie:cookie];
     }
-    for (NSHTTPCookie* cookie in vkCookies2) {
+    for (NSHTTPCookie *cookie in vkCookies2) {
         [cookies deleteCookie:cookie];
     }
-    for (NSHTTPCookie* cookie in vkCookies3) {
+    for (NSHTTPCookie *cookie in vkCookies3) {
         [cookies deleteCookie:cookie];
     }
-    for (NSHTTPCookie* cookie in vkCookies4) {
+    for (NSHTTPCookie *cookie in vkCookies4) {
         [cookies deleteCookie:cookie];
     }
-    for (NSHTTPCookie* cookie in vkCookies5) {
+    for (NSHTTPCookie *cookie in vkCookies5) {
         [cookies deleteCookie:cookie];
     }
-    for (NSHTTPCookie* cookie in vkCookies6) {
+    for (NSHTTPCookie *cookie in vkCookies6) {
         [cookies deleteCookie:cookie];
     }
-    for (NSHTTPCookie* cookie in vkCookies7) {
+    for (NSHTTPCookie *cookie in vkCookies7) {
         [cookies deleteCookie:cookie];
     }
-    for (NSHTTPCookie* cookie in vkCookies8) {
+    for (NSHTTPCookie *cookie in vkCookies8) {
         [cookies deleteCookie:cookie];
     }
 }
@@ -217,14 +256,17 @@ static VKSession *_activeSession = nil;
     _expirationDate = date;
     _userId = userId;
     [self sync];
-    if ([self.delegate respondsToSelector:@selector(vkSessionDidLogin:)]) {
-        [self.delegate vkSessionDidLogin:self];
+    if (_openHandler) {
+        _openHandler(nil);
+        _openHandler = nil;
     }
 }
 
 - (void)vkControllerLoginDidFail:(VKConnectController *)controller withError:(NSError *)error {
-    if ([self.delegate respondsToSelector:@selector(vkSessionLoginDidFail:withError:)]) {
-        [self.delegate vkSessionLoginDidFail:self withError:error];
+    [self clearAll];
+    if (_openHandler) {
+        _openHandler(error);
+        _openHandler = nil;
     }
 }
 

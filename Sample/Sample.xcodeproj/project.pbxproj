@@ -54,6 +54,7 @@
 		7F0F707B16CD153C00305823 /* AFXMLRequestOperation.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AFXMLRequestOperation.m; sourceTree = "<group>"; };
 		7F0F707C16CD153C00305823 /* UIImageView+AFNetworking.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "UIImageView+AFNetworking.h"; sourceTree = "<group>"; };
 		7F0F707D16CD153C00305823 /* UIImageView+AFNetworking.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "UIImageView+AFNetworking.m"; sourceTree = "<group>"; };
+		7F2A69CF16CEA8B0004D6E21 /* VKSession+Internal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "VKSession+Internal.h"; sourceTree = "<group>"; };
 		7FCCEC9C16CC3DA50081F20B /* Sample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7FCCEC9F16CC3DA50081F20B /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		7FCCECA116CC3DA50081F20B /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
@@ -189,6 +190,7 @@
 				7FCCECD316CC3E0C0081F20B /* VKClient.m */,
 				7FCCECD616CC3E0C0081F20B /* VKSession.h */,
 				7FCCECD716CC3E0C0081F20B /* VKSession.m */,
+				7F2A69CF16CEA8B0004D6E21 /* VKSession+Internal.h */,
 				7FCCECD416CC3E0C0081F20B /* VKConnectController.h */,
 				7FCCECD516CC3E0C0081F20B /* VKConnectController.m */,
 				7FCCECD016CC3E0C0081F20B /* NSString+VK.h */,
