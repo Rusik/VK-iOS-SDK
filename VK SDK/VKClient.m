@@ -9,7 +9,6 @@
 #import "VKClient.h"
 #import "NSString+VK.h"
 #import "AFNetworking.h"
-#import "VKSession+Internal.h"
 
 #define CAPTCHA_SID_KEY @"CaptchaSidKey"
 #define CAPTCHA_IMAGE_KEY @"CaptchaImageKey"
@@ -34,19 +33,6 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
     NSDictionary *_captchaRequestInfo;
     NSDictionary *_captchaInfo;
     NSString *_captchaText;
-    BOOL _tokenUpdating;
-    NSMutableArray *_requestQueue;
-}
-
-#pragma mark - Init
-
-- (id)init {
-    self = [super init];
-    if (self) {
-        _tokenUpdating = NO;
-        _requestQueue = [NSMutableArray array];
-    }
-    return self;
 }
 
 #pragma mark - Public
@@ -74,18 +60,19 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
 }
 
 #pragma mark - Private
-#define INVALID_ACCESS_TOKEN_CODE 5
 
 - (void)sendRequest:(NSString *)requestString success:(SuccessBlock)successBlock failure:(FailureBlock)failureBlock {
+    
+    if (![VKSession activeSession]) {
+        NSLog(@"[ERROR] You have not active session");
+        return;
+    }
     
     requestString = [requestString stringByAppendingFormat:@"&access_token=%@", [[VKSession activeSession] accessToken]];
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:requestString]];
     
-    if (_tokenUpdating) {
-        [self addRequestToQueue:requestString success:successBlock failure:failureBlock];
-        return;
-    }
-        
+    if (LOG) NSLog(@"Send request:\n%@", requestString);
+    
     AFJSONRequestOperation *op =
     [AFJSONRequestOperation JSONRequestOperationWithRequest:request success:^(NSURLRequest *request, NSHTTPURLResponse *response, id JSON) {
         
@@ -103,32 +90,6 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
         
         NSError *error = [self checkForError:dict];
         if (error) {
-            
-            if (error.code == INVALID_ACCESS_TOKEN_CODE) {
-                
-                if (![VKSession activeSession]) {
-                    NSError *error = [NSError errorWithDomain:ERROR_DOMAIN code:0 userInfo:@{@"Error description": @"You have not active session"}];
-                    failureBlock(request, response, error, JSON);
-                    return;
-                }
-                
-                _tokenUpdating = YES;
-                [self addRequestToQueue:requestString success:successBlock failure:failureBlock];
-                
-                [[VKSession activeSession] reopenSession:^(NSError *error) {
-                    _tokenUpdating = NO;
-                    if (error) {
-                        [self clearQueue];                        
-                        if (failureBlock) {
-                            failureBlock(request, response, error, JSON);
-                        }
-                    } else {
-                        [self sendRequestFromQueue];
-                    }
-                }];
-                return;
-            }
-            
             if (failureBlock) {
                 failureBlock(request, response, error, JSON);
             }
@@ -145,7 +106,6 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
         }
     }];
     
-    if (LOG) NSLog(@"Send request:\n%@", requestString);    
     [op start];
 }
 
@@ -168,26 +128,6 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
         return error;
     }
     return nil;
-}
-
-- (void)addRequestToQueue:(NSString *)requestString success:(SuccessBlock)successBlock failure:(FailureBlock)failureBlock {
-     NSDictionary *requestInfo = @{REQUEST_KEY: requestString, SUCCESS_BLOCK_KEY: successBlock, FAILURE_BLOCK_KEY: failureBlock};
-    [_requestQueue addObject:requestInfo];
-}
-
-- (void)sendRequestFromQueue {
-    if (_requestQueue.count) {
-        NSDictionary *requestInfo = [_requestQueue objectAtIndex:0];
-        [_requestQueue removeObjectAtIndex:0];
-        [self sendRequest:[requestInfo objectForKey:REQUEST_KEY]
-                  success:[requestInfo objectForKey:SUCCESS_BLOCK_KEY]
-                  failure:[requestInfo objectForKey:FAILURE_BLOCK_KEY]];
-        [self sendRequestFromQueue];
-    }
-}
-
-- (void)clearQueue {
-    [_requestQueue removeAllObjects];
 }
 
 #define TEXT_FIELD_TAG 99
