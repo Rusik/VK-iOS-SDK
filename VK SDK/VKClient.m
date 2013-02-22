@@ -43,19 +43,19 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
         requestString = [requestString stringByAppendingFormat:@"&%@=%@", key, [parameters objectForKey:key]];
     }
     
-    requestString = [requestString stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
-    
     SuccessBlock successBlock = ^(NSURLRequest *request, NSHTTPURLResponse *response, id JSON) {
         NSDictionary *result = (NSDictionary *)JSON;
         if (handler) {
             handler(result, nil);
         }
     };
+    
     FailureBlock failureBlock = ^(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, id JSON) {
         if (handler) {
             handler(nil, error);
         }
     };
+    
     [self sendRequest:requestString success:successBlock failure:failureBlock];
 }
 
@@ -69,6 +69,8 @@ typedef void(^FailureBlock)(NSURLRequest *request, NSHTTPURLResponse *response, 
     }
     
     requestString = [requestString stringByAppendingFormat:@"&access_token=%@", [[VKSession activeSession] accessToken]];
+    requestString = [requestString stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+    
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:requestString]];
     
     if (LOG) NSLog(@"Send request:\n%@", requestString);
